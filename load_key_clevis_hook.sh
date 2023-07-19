@@ -1,0 +1,32 @@
+#!/bin/bash
+
+###############
+### clevis hook
+###############
+
+Requirements:
+# - OTB clevis (full set) and optionally dropbear packages are embedded in zfsbootmenu
+# - latchset.clevis:decrypt=yes user property has to be added in advance to the encrypted dataset for automatic decryption
+# - latchset.clevis:netconf user property has to be added in advance to the encrypted dataset.
+#   The value of this property should be like this: "if:ip/mask:def. route:dns" Valid example: "eth0:10.7.6.22/24:10.7.6.1:8.8.8.8"
+#   This property is used to configure network for ssh accsess to ZBM. I use this way of passing net config params to a script to
+#   avoid rebuilding of ZBM for running on another host. In case there is no need to access ZBM via ssh this property is not needed
+# - /boot should reside inside the encrypted dataset
+# - keylocation of the encrypted dataset should be set to file:///some/file Valid example: file:///etc/zfs/rpool.key and this file
+#   should be embedded to initramfs of the target system. It is safe as initramfs  is located in encrypted /boot directory
+#
+# The logic of the module is this:
+# - Before asking the passphrase in zfsbootmenu this module checks if the volume is eligable for automatic unlocking
+# - if yes, it
+#       1. Trys to decrypt the passphrase stored in a special property in encrypted format. The script uses clevis and tpm2 for that
+#       2. In case of failure it asks the user a passphrase and check if it is valid
+#       3. Valid passphrase is stored in clear text in keylocation (in fact in RAM) and in encrypted format bound to tpm2 in a special
+#          user property latchset.clevis:jwe of the encrypted dataset for next boots
+# - Then module returns the control back to ZBM
+#
+# arg1: ZFS filesystem
+# prints: nothing
+# asks: passphrase
+# returns: 0 on success, 1 on failure
+#
+
