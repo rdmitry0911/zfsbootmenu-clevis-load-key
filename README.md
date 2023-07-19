@@ -5,6 +5,7 @@
 
 Requirements:
 - OTB `clevis` (full set) and optionally `dropbear` packages are embedded in zfsbootmenu
+- `ZFSBootMenu` with load_key hooks support (my fork of it is suitable)
 - `latchset.clevis:decrypt=yes` user property has to be added in advance to the encrypted dataset for automatic decryption
 - `latchset.clevis:netconf` user property has to be added in advance to the encrypted dataset.
   The value of this property should be like this: "if:ip/mask:def. route:dns" Valid example: "eth0:10.7.6.22/24:10.7.6.1:8.8.8.8"
