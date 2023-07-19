@@ -2,7 +2,7 @@
 
 ## This is a load_key hook for ZFSBootMenu to automatically unlock zfsroot dataset using clevis 
 
-
+### This module doesn't unlock the dataset, it just generates a key with a valid passphrase in expected place thus providing automatick dataset unlocking in main ZBM code
 Requirements:
 - OTB `clevis` (full set) and optionally `dropbear` packages are embedded in zfsbootmenu
 - `ZFSBootMenu` with load_key hooks support ([my fork](https://github.com/rdmitry0911/zfsbootmenu) of it is suitable)
@@ -26,7 +26,6 @@ The logic of the module is this:
           user property latchset.clevis:jwe of the encrypted dataset for next boots
  - Then module returns the control back to ZBM
 
-arg1: ZFS filesystem
-prints: nothing
-asks: passphrase
-returns: 0 on success, 1 on failure
+ arg1: ZFS filesystem to unlock
+ 
+ returns: 0 on success, 1 on failure
