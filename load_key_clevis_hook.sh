@@ -4,18 +4,24 @@
 ### clevis hook
 ###############
 
-Requirements:
+#   Requirements:
+#
 # - OTB clevis (full set) and optionally dropbear packages are embedded in zfsbootmenu
 # - latchset.clevis:decrypt=yes user property has to be added in advance to the encrypted dataset for automatic decryption
 # - latchset.clevis:netconf user property has to be added in advance to the encrypted dataset.
 #   The value of this property should be like this: "if:ip/mask:def. route:dns" Valid example: "eth0:10.7.6.22/24:10.7.6.1:8.8.8.8"
 #   This property is used to configure network for ssh accsess to ZBM. I use this way of passing net config params to a script to
 #   avoid rebuilding of ZBM for running on another host. In case there is no need to access ZBM via ssh this property is not needed
+# - latchset.clevis:dropbear user property has to be added in advance to the encrypted dataset.
+#   The value of this property should be authorized key for ssh login to zfsbootmenu as a root.
+#   Valid example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhw5gGy/g9CM8PlB23Ag1RMgPfUoXu2tKELP9FIOcK4 rdmitry0911@gmail.com"
+#   This property is used to configure root ssh accsess to ZBM. I use this way of passing dropbear config to avoid rebuilding of ZBM
+#   for running on another host. In case there is no need to access ZBM via ssh this property is not needed
 # - /boot should reside inside the encrypted dataset
 # - keylocation of the encrypted dataset should be set to file:///some/file Valid example: file:///etc/zfs/keys/rpool.key and this file
 #   should be embedded to initramfs of the target system. It is safe as initramfs  is located in encrypted /boot directory
-# - As far as this script will generate a temporary keyfile in ZBM, it is a good idea for a keyfile location to create a subfolder 
-#   in /etc/zfs and put a keyfile there with a unique name to avoid potential conflicts with existing files in ZBM
+# - To avoid conflicts with existing files in ZBM, it is a good idea to create a subfolder in /etc/zfs and put a keyfile there with
+#   unique name
 #
 # The logic of the module is this:
 # - Before asking the passphrase in zfsbootmenu this module checks if the volume is eligable for automatic unlocking
@@ -31,6 +37,7 @@ Requirements:
 # asks: passphrase
 # returns: 0 on success, 1 on failure
 #
+
 
 get_fs_value()
 {
@@ -74,11 +81,12 @@ load_key_clevis() {
   # We need to setup network for remote access
   # We use latchset.clevis:netconf property in encrypted dataset to store net config
 
-  if [[ ! -f "/tmp/clevis_net" ]]; then # Reconfigure network only once
+  if [[ ! -f /tmp/"$dataset_for_clevis_unlock"_clevis_net ]]; then # Reconfigure network and dropbear only once
     CLEVIS_NET="$(get_fs_value "${dataset_for_clevis_unlock}" "latchset.clevis:netconf")"
     if [[ "$CLEVIS_NET" != "-" ]]; then
       # We have net config. Reconfigure network
-      : > /tmp/clevis_net
+      mkdir -p "$(dirname /tmp/'$dataset_for_clevis_unlock'_clevis_net)"
+      : > /tmp/"$dataset_for_clevis_unlock"_clevis_net
       IFS=':' read -r -a netconf <<< "$CLEVIS_NET"
       dev="${netconf[0]}"
       ip="${netconf[1]}"
@@ -89,10 +97,16 @@ load_key_clevis() {
       ip route add default via "$dr"
       echo "nameserver $dns" > /etc/resolv.conf
     fi
+    CLEVIS_DROPBEAR="$(get_fs_value "${dataset_for_clevis_unlock}" "latchset.clevis:dropbear")"
+    if [[ "$CLEVIS_DROPBEAR" != "-" ]]; then
+      # We have dropbear authorize key. Put it in a right place
+      zdebug "Dropbear authorize key: $CLEVIS_DROPBEAR"
+      mkdir -p /root/.ssh
+      echo "$CLEVIS_DROPBEAR" >> /root/.ssh/authorized_keys
+    fi
   fi
 
-
-  CLEVIS_CHECK="$(zfs get -H -o value latchset.clevis:decrypt -s local "$dataset_for_clevis_unlock")" || CLEVIS_CHECK=
+  CLEVIS_CHECK="$(zfs get -H -p -o value latchset.clevis:decrypt -s local $dataset_for_clevis_unlock)"
   if [[ "$CLEVIS_CHECK" == "yes" ]]; then
     zdebug "Found dataset for clevis unlocking: $dataset_for_clevis_unlock"
     KEYLOCATION="$(get_fs_value "${dataset_for_clevis_unlock}" keylocation)" || KEYLOCATION=
@@ -112,8 +126,10 @@ load_key_clevis() {
         # Prepare the key with password for unlocking in right place
         mkdir -p "$(dirname "$KEYFILE")"
         JWE="$(zfs get -H -p -o value latchset.clevis:jwe -s local "$dataset_for_clevis_unlock")"
-        echo "$JWE" | clevis decrypt >"$KEYFILE"
-        if zfs load-key -L "${KEYLOCATION}" -n $dataset_for_clevis_unlock; then
+        mkdir -p "$(dirname /tmp/'$dataset_for_clevis_unlock'_clevis_temp_key)"
+        echo "$JWE" | clevis decrypt >/tmp/"$dataset_for_clevis_unlock"_clevis_temp_key
+        if zfs load-key -L file:///tmp/"$dataset_for_clevis_unlock"_clevis_temp_key -n $dataset_for_clevis_unlock; then
+          mv /tmp/"$dataset_for_clevis_unlock"_clevis_temp_key "$KEYFILE"
           return 0
         else
           # We have autodecrypt flag set to on, however dataset can't be unlocked. Offer resealing the password
@@ -140,7 +156,7 @@ load_key_clevis() {
             jwe_check="$(zfs get -H -p -o value latchset.clevis:jwe -s local $dataset_for_clevis_unlock)"
             if echo "$jwe_check" | clevis decrypt | zfs load-key -n -L prompt "$dataset_for_clevis_unlock"; then
               zdebug "The jwe was correctly stored in dataset $dataset_for_clevis_unlock"
-            else 
+            else
               # We failed. The jwe is not correctly stored in dataset
               zwarn "We failed. The jwe is not correctly stored in dataset $dataset_for_clevis_unlock"
               return 1
