@@ -126,7 +126,7 @@ load_key_clevis() {
         # Prepare the key with password for unlocking in right place
         mkdir -p "$(dirname "$KEYFILE")"
         JWE="$(zfs get -H -p -o value latchset.clevis:jwe -s local "$dataset_for_clevis_unlock")"
-        mkdir -p "$(dirname /tmp/'$dataset_for_clevis_unlock'_clevis_temp_key)"
+        mkdir -p "$(dirname /tmp/"$dataset_for_clevis_unlock"_clevis_temp_key)"
         echo "$JWE" | clevis decrypt >/tmp/"$dataset_for_clevis_unlock"_clevis_temp_key
         if zfs load-key -L file:///tmp/"$dataset_for_clevis_unlock"_clevis_temp_key -n $dataset_for_clevis_unlock; then
           mv /tmp/"$dataset_for_clevis_unlock"_clevis_temp_key "$KEYFILE"
