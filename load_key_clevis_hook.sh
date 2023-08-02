@@ -81,12 +81,11 @@ load_key_clevis() {
   # We need to setup network for remote access
   # We use latchset.clevis:netconf property in encrypted dataset to store net config
 
-  if [[ ! -f /tmp/"$dataset_for_clevis_unlock"_clevis_net ]]; then # Reconfigure network and dropbear only once
+  if [[ ! -f /tmp/clevis_net ]]; then # Reconfigure network and dropbear only once
     CLEVIS_NET="$(get_fs_value "${dataset_for_clevis_unlock}" "latchset.clevis:netconf")"
     if [[ "$CLEVIS_NET" != "-" ]]; then
       # We have net config. Reconfigure network
-      mkdir -p "$(dirname /tmp/"$dataset_for_clevis_unlock"_clevis_net)"
-      : > /tmp/"$dataset_for_clevis_unlock"_clevis_net
+      : > /tmp/clevis_net
       IFS=':' read -r -a netconf <<< "$CLEVIS_NET"
       dev="${netconf[0]}"
       ip="${netconf[1]}"
@@ -105,6 +104,7 @@ load_key_clevis() {
       echo "$CLEVIS_DROPBEAR" >> /root/.ssh/authorized_keys
     fi
   fi
+
 
   CLEVIS_CHECK="$(zfs get -H -p -o value latchset.clevis:decrypt -s local $dataset_for_clevis_unlock)"
   if [[ "$CLEVIS_CHECK" == "yes" ]]; then
