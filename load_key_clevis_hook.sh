@@ -85,7 +85,7 @@ load_key_clevis() {
     CLEVIS_NET="$(get_fs_value "${dataset_for_clevis_unlock}" "latchset.clevis:netconf")"
     if [[ "$CLEVIS_NET" != "-" ]]; then
       # We have net config. Reconfigure network
-      mkdir -p "$(dirname /tmp/'$dataset_for_clevis_unlock'_clevis_net)"
+      mkdir -p "$(dirname /tmp/"$dataset_for_clevis_unlock"_clevis_net)"
       : > /tmp/"$dataset_for_clevis_unlock"_clevis_net
       IFS=':' read -r -a netconf <<< "$CLEVIS_NET"
       dev="${netconf[0]}"
